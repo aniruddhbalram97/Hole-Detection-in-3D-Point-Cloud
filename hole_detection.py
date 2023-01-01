@@ -1,5 +1,6 @@
 import open3d as o3d
 import numpy as np
+import logging 
 import math
 import os
 
@@ -8,6 +9,8 @@ class HoleDetection:
     def __init__(self, path):
         self.path = path
         self.pcd = []
+        self.pcdArray = []
+        self.index = []
         
     def readAndConvertObjToPointCloud(self, points):
         """
@@ -16,8 +19,8 @@ class HoleDetection:
         """
         mesh = o3d.io.read_triangle_mesh(self.path, True)
         self.pcd = mesh.sample_points_poisson_disk(points)
-        pcdArray = np.asarray(self.pcd.points)
-        return self.pcd, pcdArray
+        self.pcdArray = np.asarray(self.pcd.points)
+        return self.pcd, self.pcdArray
     
     
     def computeSquaredDistance(self, point1, point2):
@@ -32,7 +35,7 @@ class HoleDetection:
         squaredDistance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2)
         return squaredDistance
     
-    def computeCentroid(self, pointArray):
+    def computeCentroid(self, index):
         """
         Function to compute centroid for a given array of points
         Args: pointArray - 2D array of the form [[x1 y1 z1] [x2 y2 z2] .... [xn, yn, zn]]
@@ -41,6 +44,7 @@ class HoleDetection:
         x = 0
         y = 0
         z = 0
+        pointArray = np.asarray(self.pcdArray)[index[1:], :]
         for i in range(0, len(pointArray), 1):
             x = x + pointArray[i][0]
             y = y + pointArray[i][1]
@@ -55,16 +59,33 @@ class HoleDetection:
               radius - max-radius within which nearest neighbors are defined
         """
         pcdKdTree = o3d.geometry.KDTreeFlann(self.pcd)
-        [k, index, _] = pcdKdTree.search_radius_vector_3d(self.pcd.points[point], radius)
-        return index
+        [k, self.index, _] = pcdKdTree.search_radius_vector_3d(self.pcd.points[point], radius)
+        return self.index
+    
+    def extractBoundaryPoints(self, radius, tolerance):
+        boundary_points = []
+        pcdArray = self.pcdArray
+        for i in range(0, len(np.asarray(pcdArray)), 1):
+            point = pcdArray[i]
+            index = np.asarray(self.findRadialNeighbors(i, radius))
+            print(len(index))
+            centroid = self.computeCentroid(index)
+            if(self.computeSquaredDistance(centroid, point) > tolerance):
+                boundary_points.append(list(point))
+            logging.info("Iteration...%d", i)
+        boundary_points = np.array(boundary_points)
+        return boundary_points
+        
 
-# Radial Neighbors test
+# Boundary Extraction test
 hole_detection = HoleDetection(os.path.abspath(os.getcwd()) + "/models_3d/dragon_with_hole.obj")
 pcd, pcdArray = hole_detection.readAndConvertObjToPointCloud(50000)
-pcd.paint_uniform_color([0.5, 0.5, 0.5])
-pcd.colors[1500] = [1, 0, 0]
 
-index = hole_detection.findRadialNeighbors(1500, 2)
-np.asarray(pcd.colors)[index[1:],:] = [0, 0, 1]
-o3d.visualization.draw_geometries([pcd])
+#index = hole_detection.findRadialNeighbors(1500, 0.5)
+boundary_points = hole_detection.extractBoundaryPoints(2, 0.4)
+boundary_pcd = o3d.geometry.PointCloud()
+boundary_pcd.points = o3d.utility.Vector3dVector(boundary_points)
+boundary_pcd.paint_uniform_color([0.5, 0.5, 0.5])
+#np.asarray(pcd.colors)[index[1:],:] = [0, 0, 1]
+o3d.visualization.draw_geometries([boundary_pcd])
 
