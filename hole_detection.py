@@ -63,6 +63,11 @@ class HoleDetection:
         return self.index
     
     def extractBoundaryPoints(self, radius, tolerance):
+        """
+        Function to extract boundary points
+        Args: radius - maximum radius to find the radial neighbors for a given point
+              tolerance - To detect an outlier point. A point is a boundary point if its distance from centroid is greater than a certain tolerance level
+        """
         boundary_points = []
         pcdArray = self.pcdArray
         for i in range(0, len(np.asarray(pcdArray)), 1):
@@ -76,6 +81,7 @@ class HoleDetection:
         boundary_points = np.array(boundary_points)
         return boundary_points
         
+    
 
 # Boundary Extraction test
 hole_detection = HoleDetection(os.path.abspath(os.getcwd()) + "/models_3d/dragon_with_hole.obj")
