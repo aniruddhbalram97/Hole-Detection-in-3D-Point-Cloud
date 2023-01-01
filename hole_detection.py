@@ -7,6 +7,7 @@ class HoleDetection:
     
     def __init__(self, path):
         self.path = path
+        self.pcd = []
         
     def readAndConvertObjToPointCloud(self, points):
         """
@@ -14,9 +15,10 @@ class HoleDetection:
         Args: points - number of points that need to be generated
         """
         mesh = o3d.io.read_triangle_mesh(self.path, True)
-        pcd = mesh.sample_points_poisson_disk(points)
-        pcdArray = np.asarray(pcd.points)
-        return pcd, pcdArray
+        self.pcd = mesh.sample_points_poisson_disk(points)
+        pcdArray = np.asarray(self.pcd.points)
+        return self.pcd, pcdArray
+    
     
     def computeSquaredDistance(self, point1, point2):
         """
@@ -33,7 +35,7 @@ class HoleDetection:
     def computeCentroid(self, pointArray):
         """
         Function to compute centroid for a given array of points
-        Args: pointArray is a 2D array of the form [[x1 y1 z1] [x2 y2 z2] .... [xn, yn, zn]]
+        Args: pointArray - 2D array of the form [[x1 y1 z1] [x2 y2 z2] .... [xn, yn, zn]]
         Formula: Centroid = ((x1 + x2 + ... + xn)/n , (y1 + y2 + ... + yn)/n , (z1 + z2 + ... + zn)/n)
         """
         x = 0
@@ -46,5 +48,23 @@ class HoleDetection:
         centroid = [x / len(pointArray), y / len(pointArray), z / len(pointArray)]
         return centroid
     
-pointCloud, pointCloudArray = HoleDetection(os.path.abspath(os.getcwd()) + "/models_3d/dragon_with_hole.obj").readAndConvertObjToPointCloud(5000)
-o3d.visualization.draw_geometries([pointCloud])
+    def findRadialNeighbors(self, point, radius):
+        """
+        Function to find neighboring points within a given radius
+        Args: point - index of point under consideration
+              radius - max-radius within which nearest neighbors are defined
+        """
+        pcdKdTree = o3d.geometry.KDTreeFlann(self.pcd)
+        [k, index, _] = pcdKdTree.search_radius_vector_3d(self.pcd.points[point], radius)
+        return index
+
+# Radial Neighbors test
+hole_detection = HoleDetection(os.path.abspath(os.getcwd()) + "/models_3d/dragon_with_hole.obj")
+pcd, pcdArray = hole_detection.readAndConvertObjToPointCloud(50000)
+pcd.paint_uniform_color([0.5, 0.5, 0.5])
+pcd.colors[1500] = [1, 0, 0]
+
+index = hole_detection.findRadialNeighbors(1500, 2)
+np.asarray(pcd.colors)[index[1:],:] = [0, 0, 1]
+o3d.visualization.draw_geometries([pcd])
+
