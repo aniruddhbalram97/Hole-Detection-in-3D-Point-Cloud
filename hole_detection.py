@@ -3,6 +3,7 @@ import numpy as np
 import logging 
 import math
 import os
+import matplotlib.pyplot as plt
 
 class HoleDetection:
     
@@ -49,7 +50,11 @@ class HoleDetection:
             x = x + pointArray[i][0]
             y = y + pointArray[i][1]
             z = z + pointArray[i][2]
-        centroid = [x / len(pointArray), y / len(pointArray), z / len(pointArray)]
+        
+        if(len(pointArray) == 0):
+            centroid = [x, y, z]
+        else:
+            centroid = [x / len(pointArray), y / len(pointArray), z / len(pointArray)]
         return centroid
     
     def findRadialNeighbors(self, point, radius):
@@ -67,13 +72,13 @@ class HoleDetection:
         Function to extract boundary points
         Args: radius - maximum radius to find the radial neighbors for a given point
               tolerance - To detect an outlier point. A point is a boundary point if its distance from centroid is greater than a certain tolerance level
+        TODO: determine a tolerance value like an average of all values
         """
         boundary_points = []
         pcdArray = self.pcdArray
         for i in range(0, len(np.asarray(pcdArray)), 1):
             point = pcdArray[i]
             index = np.asarray(self.findRadialNeighbors(i, radius))
-            print(len(index))
             centroid = self.computeCentroid(index)
             if(self.computeSquaredDistance(centroid, point) > tolerance):
                 boundary_points.append(list(point))
@@ -81,17 +86,35 @@ class HoleDetection:
         boundary_points = np.array(boundary_points)
         return boundary_points
         
-    
+    def extractClusters(self, pcd, eps, minPoints):
+        """
+        Function implements DBSCAN to form clusters for a given point cloud data
+        Args: pcd - input pointcloud data
+              eps - minimum radial size of cluster
+              minPoints - minimum number of points required to form a cluster
+        """
+        with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
+            labels = np.array(pcd.cluster_dbscan(eps = eps, min_points = minPoints, print_progress = True))
+        return labels
 
-# Boundary Extraction test
+
+# Cluster Extraction test
 hole_detection = HoleDetection(os.path.abspath(os.getcwd()) + "/models_3d/dragon_with_hole.obj")
-pcd, pcdArray = hole_detection.readAndConvertObjToPointCloud(50000)
+pcd, pcdArray = hole_detection.readAndConvertObjToPointCloud(25000)
 
-#index = hole_detection.findRadialNeighbors(1500, 0.5)
+# index = hole_detection.findRadialNeighbors(1500, 0.5)
 boundary_points = hole_detection.extractBoundaryPoints(2, 0.4)
 boundary_pcd = o3d.geometry.PointCloud()
 boundary_pcd.points = o3d.utility.Vector3dVector(boundary_points)
-boundary_pcd.paint_uniform_color([0.5, 0.5, 0.5])
-#np.asarray(pcd.colors)[index[1:],:] = [0, 0, 1]
+
+labels = hole_detection.extractClusters(boundary_pcd, 5, 25)
+max_label = labels.max()
+colors = plt.get_cmap("tab20")(labels/(max_label if max_label > 0 else 1))
+print(len(labels))
+print(labels)
+colors[labels < 0] = 0
+boundary_pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
+
+# #np.asarray(pcd.colors)[index[1:],:] = [0, 0, 1]
 o3d.visualization.draw_geometries([boundary_pcd])
 
