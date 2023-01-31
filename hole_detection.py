@@ -100,14 +100,14 @@ class HoleDetection:
 
 # Cluster Extraction test
 hole_detection = HoleDetection(os.path.abspath(os.getcwd()) + "/models_3d/dragon_with_hole.obj")
-pcd, pcdArray = hole_detection.readAndConvertObjToPointCloud(25000)
+pcd, pcdArray = hole_detection.readAndConvertObjToPointCloud(50000)
 
 # index = hole_detection.findRadialNeighbors(1500, 0.5)
 boundary_points = hole_detection.extractBoundaryPoints(2, 0.4)
 boundary_pcd = o3d.geometry.PointCloud()
 boundary_pcd.points = o3d.utility.Vector3dVector(boundary_points)
 
-labels = hole_detection.extractClusters(boundary_pcd, 5, 25)
+labels = hole_detection.extractClusters(boundary_pcd, 10, 50)
 max_label = labels.max()
 colors = plt.get_cmap("tab20")(labels/(max_label if max_label > 0 else 1))
 print(len(labels))
